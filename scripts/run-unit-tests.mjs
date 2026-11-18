@@ -36,7 +36,8 @@ const files = readdirSync(dir)
 const result = spawnSync(process.execPath, ["--test", ...files], {
   cwd: root,
   // Loopback-only credential URLs (src/core/url-policy.js testMode): a test can never reach a live gateway.
-  env: { ...process.env, GROK_BOT_TEST: "1" },
+  // A real parent Codex identity must not change synthetic CLI prompt fixtures.
+  env: { ...process.env, GROK_BOT_TEST: "1", CODEX_THREAD_ID: "" },
   stdio: "inherit",
 });
 process.exit(result.status === null ? 1 : result.status);

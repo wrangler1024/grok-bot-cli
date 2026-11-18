@@ -45,6 +45,8 @@ async function fixture(t, kind, phase) {
         gatewayUrl: `http://127.0.0.1:${server.address().port}`,
         gatewayToken: "fixture-gateway-token",
       };
+    } else if (req.url.endsWith("/ListGrokBotAgents")) {
+      response = { agents: [] };
     } else if (req.url === "/api/listAgents") {
       if (!held && phase === "resolve" && sending()) await hold();
       response = {

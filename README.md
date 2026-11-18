@@ -1,6 +1,6 @@
-# grok-bot-cli
+# grok-bot-cli Samforo
 
-[![npm version](https://img.shields.io/npm/v/grok-bot-cli.svg)](https://www.npmjs.com/package/grok-bot-cli)
+[![GitHub release](https://img.shields.io/github/v/release/wrangler1024/grok-bot-cli)](https://github.com/wrangler1024/grok-bot-cli/releases)
 
 Manage [Grok Bot](https://cursor.com/help/grok-bot/plans) agents, groups, and messages from your terminal.
 
@@ -8,10 +8,17 @@ Manage [Grok Bot](https://cursor.com/help/grok-bot/plans) agents, groups, and me
 
 [Watch the MP4](https://github.com/ScriptedAlchemy/grok-bot-cli/blob/main/demo/grok-bot-cli-demo.mp4)
 
+## Maintained compatibility fork
+
+Version **0.12.5-samforo.1**, based on [ScriptedAlchemy/grok-bot-cli v0.12.5](https://github.com/ScriptedAlchemy/grok-bot-cli/tree/v0.12.5). Maintained independently by [wrangler1024](https://github.com/wrangler1024), with the original MIT license retained.
+
+This fork fixes stale gateway 404 recovery, gateway port-token headers, and server Bot sending and transcript readback. The original local patch completed a real native Codex MCP round trip on macOS with Grok Bot 1.1.0. See [compatibility, validation and maintenance notes](docs/COMPATIBILITY.md) for the supported scope.
+
 ## Install
 
 ```sh
-npm install --global grok-bot-cli
+npm install --global https://github.com/wrangler1024/grok-bot-cli/releases/download/v0.12.5-samforo.1/grok-bot-cli-0.12.5-samforo.1.tgz
+gbot --version
 ```
 
 Requires Node.js 22.19.0+ and the Grok Bot desktop app on macOS, Linux, or Windows. Open Grok Bot and sign in once; `gbot` automatically uses the app's encrypted session and routing credentials. No token copying is required. If the app removes its cached gateway route while the cloud computer sleeps, the CLI uses the active account in `sand-secrets.json` to request a fresh route through `EnsureSandBox`. Signed-out and inactive saved accounts are never selected. Backend requests use the installed Grok Bot app version, read from the app's `desktop-status.json` (or the macOS app bundle); `SAND_CLIENT_VERSION` remains an explicit override. On Linux the app keeps its session under `~/.config/Grok Bot` (or `$XDG_CONFIG_HOME`); when it is stored in the system keyring, `gbot` reads the key with `secret-tool` (package `libsecret-tools`). On Windows the session lives under `%APPDATA%\\Grok Bot` and decrypts with the app's DPAPI-wrapped Safe Storage key.

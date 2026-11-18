@@ -18,15 +18,25 @@ const artifactRoot = fileURLToPath(new URL("../artifact/", import.meta.url));
 test("npm package metadata identifies the public source repository", () => {
   assert.deepEqual(packageJson.repository, {
     type: "git",
-    url: "git+https://github.com/ScriptedAlchemy/grok-bot-cli.git",
+    url: "git+https://github.com/wrangler1024/grok-bot-cli.git",
   });
   assert.equal(
     packageJson.homepage,
-    "https://github.com/ScriptedAlchemy/grok-bot-cli#readme",
+    "https://github.com/wrangler1024/grok-bot-cli#readme",
   );
   assert.deepEqual(packageJson.bugs, {
-    url: "https://github.com/ScriptedAlchemy/grok-bot-cli/issues",
+    url: "https://github.com/wrangler1024/grok-bot-cli/issues",
   });
+});
+
+test("the fork keeps upstream attribution and uses GitHub-only distribution", () => {
+  assert.equal(packageJson.private, true);
+  const readme = readFileSync(new URL("../README.md", import.meta.url), "utf8");
+  const license = readFileSync(new URL("../LICENSE", import.meta.url), "utf8");
+  const release = readFileSync(new URL("../.github/workflows/release.yml", import.meta.url), "utf8");
+  assert.match(readme, /https:\/\/github\.com\/ScriptedAlchemy\/grok-bot-cli/);
+  assert.match(license, /Copyright \(c\) 2026 ScriptedAlchemy/);
+  assert.match(release, /github\.repository == 'ScriptedAlchemy\/grok-bot-cli'/);
 });
 
 test("repository marketplaces install the committed artifact", () => {

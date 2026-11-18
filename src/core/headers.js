@@ -24,7 +24,9 @@ export function headersFromEnsureSandbox(body) {
   const mapped = normalizeHeaderMap(body.gatewayHeaders || body.gateway_headers);
   if (Object.keys(mapped).length) return mapped;
   const token = body.anyrunNetworkToken || body.anyrun_network_token || body.networkToken;
-  return token ? { "x-anyrun-network-token": String(token) } : {};
+  const portToken = body.gatewayPortToken || body.gateway_port_token;
+  return token ? { "x-anyrun-network-token": String(token) }
+    : portToken ? { "x-anyrun-port-token": String(portToken) } : {};
 }
 
 export function headersFromEnv() {

@@ -16,6 +16,7 @@ concurrency:
 
 jobs:
   release:
+    if: github.repository == 'ScriptedAlchemy/grok-bot-cli'
     runs-on: ubuntu-26.04
     # Allow ~20 minutes of npm registry propagation retries after publish.
     timeout-minutes: 35

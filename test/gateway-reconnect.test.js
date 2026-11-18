@@ -82,6 +82,11 @@ test("hibernated read refreshes active credentials, team and routing headers wit
   const calls = [];
   t.mock.method(globalThis, "fetch", async (url, options) => {
     calls.push({ url, options });
+    if (url.endsWith("/ListGrokBotAgents")) {
+      assert.equal(options.headers.authorization, "Bearer fake-access");
+      assert.equal(options.headers["x-cursor-team-id"], "12");
+      return Response.json({ agents: [] });
+    }
     if (url.endsWith("/EnsureSandBox")) {
       assert.equal(options.headers.authorization, "Bearer fake-access");
       assert.equal(options.headers["x-cursor-team-id"], "12");
@@ -257,6 +262,7 @@ for (const operation of ["sendPrompt", "createAgent"]) {
     let writes = 0, ensures = 0;
     t.mock.method(globalThis, "fetch", async (url) => {
       if (url.endsWith("/EnsureSandBox")) { ensures++; return fresh(); }
+      if (url.endsWith("/ListGrokBotAgents")) return Response.json({ agents: [] });
       if (url.endsWith("/listAgents")) return Response.json(roster);
       writes++;
       return sleeping();

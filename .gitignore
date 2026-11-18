@@ -11,3 +11,6 @@ tmp-agents/
 
 # Local plugin checkout is not part of the shipped source snapshot.
 /plugin/
+
+# GitHub release packages are attached to Releases, outside the source snapshot.
+/release-assets/

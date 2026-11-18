@@ -1,5 +1,16 @@
 # grok-bot-cli
 
+## 0.12.5-samforo.1
+
+Maintained compatibility fork based on upstream 0.12.5.
+
+- Recover a cached `pod_not_found` gateway route once for read requests.
+- Support `gatewayPortToken` routing headers while preserving existing precedence.
+- Route temporal Bot sends, status lookup and transcript-tail reads through the active account's backend API.
+- Preserve nonce correlation, unknown-delivery handling, account constraints and no-retry write semantics.
+- Add source regression coverage and GitHub-only fork release assets with checksums.
+
+
 ## 0.12.5
 
 ### Patch Changes

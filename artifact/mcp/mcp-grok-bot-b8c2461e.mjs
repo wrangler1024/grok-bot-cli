@@ -60711,7 +60711,7 @@ var __webpack_modules__ = {
         const route19 = Object.assign({}, Reflect.get(_src_mcp_grok_bot_tools_gbot_grok_respond_tsx__rspack_import_22, 'default'), _src_mcp_grok_bot_tools_gbot_grok_respond_tsx__rspack_import_22);
         const route20 = Object.assign({}, Reflect.get(_src_mcp_grok_bot_tools_gbot_send_tsx__rspack_import_23, 'default'), _src_mcp_grok_bot_tools_gbot_send_tsx__rspack_import_23);
         const route21 = Object.assign({}, Reflect.get(_src_mcp_grok_bot_tools_gbot_thread_tsx__rspack_import_24, 'default'), _src_mcp_grok_bot_tools_gbot_thread_tsx__rspack_import_24);
-        const ARTIFACT_EPOCH = "gbot@0.12.5";
+        const ARTIFACT_EPOCH = "gbot@0.12.5-samforo.1";
         const pluginRoot = (0, _agent_bundle_runtime__rspack_import_25.E7)({
             fallback: (0, node_url__rspack_import_0.fileURLToPath)(new URL('..', import.meta.url)),
             stateAnchor: 'user-data'
@@ -61730,7 +61730,7 @@ var __webpack_modules__ = {
                 lineage: lineage.registry,
                 plugin: {
                     "name": "gbot",
-                    "version": "0.12.5"
+                    "version": "0.12.5-samforo.1"
                 },
                 pluginRoot: pluginRoot.identity,
                 routes
@@ -65671,7 +65671,7 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
             }
             if (!prompt) assertGatewayActive(signal);
             if (!res.ok) {
-                if (!reconnected && READ_ONLY_METHODS.has(method) && reconnectState && res.status === 417 && res.headers.get("x-anyrun-error-source") === "anyrun-proxy" && res.headers.get("x-anyrun-failure-reason") === "pod_hibernated") {
+                if (!reconnected && READ_ONLY_METHODS.has(method) && reconnectState && res.headers.get("x-anyrun-error-source") === "anyrun-proxy" && (res.status === 417 && res.headers.get("x-anyrun-failure-reason") === "pod_hibernated" || res.status === 404 && res.headers.get("x-anyrun-failure-reason") === "pod_not_found")) {
                     await refreshGateway(session, reconnectState, generation, signal);
                     return gatewayCall(session, method, body, {
                         signal,
@@ -65732,7 +65732,179 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
             const data = await gatewayCall(session, "listAgents", {}, {
                 signal
             });
-            return unwrapList(data).map(asRecord).filter((r)=>r && r.id);
+            const records = unwrapList(data).map(asRecord).filter((r)=>r && r.id);
+            const state = reconnectStates.get(session);
+            if (!state?.accountKey && !state?.accessToken) return records;
+            const roster = await serverBackendCall(session, "ListGrokBotAgents", {}, {
+                signal
+            });
+            if (roster.truncated === true) throw new GatewayError("Server Bot roster is truncated; target resolution refused.");
+            if (!Array.isArray(roster.agents)) throw new GatewayError("Invalid server Bot roster.");
+            const merged = new Map(records.map((record)=>[
+                    record.id,
+                    record
+                ]));
+            state.serverAgents = new Map();
+            for (const agent of roster.agents){
+                if (agent.harness !== "temporal" || typeof agent.agentId !== "string" || !agent.agentId) continue;
+                const prior = merged.get(agent.agentId);
+                const record = {
+                    ...prior,
+                    ...asRecord({
+                        ...agent,
+                        id: agent.agentId
+                    }),
+                    ...prior?.isGroup === true ? {
+                        isGroup: true
+                    } : {},
+                    harness: "temporal",
+                    viewerSessionId: agent.viewerSessionId || ""
+                };
+                state.serverAgents.set(record.id, record);
+                merged.set(record.id, record);
+            }
+            return [
+                ...merged.values()
+            ];
+        }
+        async function serverBackendCall(session, method, body, { signal } = {}) {
+            assertGatewayActive(signal);
+            const state = reconnectStates.get(session);
+            if (!state) throw new GatewayError("Server Bot access requires the active Grok Bot account.");
+            const credentials = state.accountKey ? (0, _app_session_js__rspack_import_2.gF)({
+                ...state.appSessionOptions,
+                expectedAccountKey: state.accountKey
+            }) : {
+                accessToken: state.accessToken
+            };
+            if (!credentials?.accessToken) throw new GatewayError("No active account credentials for the server Bot.");
+            const url = (0, _url_policy_js__rspack_import_4.Re)(backendBase(), {
+                kind: "backend"
+            }) + "/aiserver.v1.GrokBotService/" + method;
+            const res = await fetch(url, {
+                method: "POST",
+                redirect: "error",
+                signal: gatewayDeadline(signal),
+                headers: {
+                    ...(0, _headers_js__rspack_import_1._6)(credentials.accessToken),
+                    ...credentials.teamId === undefined ? {} : {
+                        "x-cursor-team-id": credentials.teamId
+                    }
+                },
+                body: JSON.stringify(body)
+            });
+            const data = await readJson(res);
+            if (!res.ok) {
+                const error = new GatewayError(method + " failed: " + res.status + " " + (0, _url_policy_js__rspack_import_4.fp)(String(data.message || data.error || data.raw || res.statusText).slice(0, 300)), {
+                    status: res.status,
+                    method
+                });
+                if (method === "SendGrokBotUserMessage") error.delivery = res.status < 500 ? "rejected" : "unknown";
+                throw error;
+            }
+            if (state.accountKey && (0, _app_session_js__rspack_import_2.B3)(state.appSessionOptions) !== state.accountKey) {
+                const error = new GatewayError("Grok Bot active account changed during the server request.");
+                if (method === "SendGrokBotUserMessage") error.delivery = "unknown";
+                throw error;
+            }
+            return data;
+        }
+        function decodeServerTranscript(data) {
+            if (!Array.isArray(data.entries)) throw new GatewayError("Invalid server Bot transcript.");
+            return {
+                entries: [
+                    ...data.entries
+                ].sort((a, b)=>{
+                    const left = BigInt(a.seq || 0), right = BigInt(b.seq || 0);
+                    return left < right ? -1 : left > right ? 1 : 0;
+                }).map((row)=>{
+                    if (typeof row.body !== "string" || row.bodyOmitted === true) {
+                        return {
+                            id: row.entryId || String(row.seq),
+                            kind: row.entryKind || "unknown",
+                            text: "[Message body unavailable in this bounded server transcript]"
+                        };
+                    }
+                    let entry;
+                    try {
+                        entry = JSON.parse(Buffer.from(row.body, "base64").toString("utf8"));
+                    } catch  {
+                        throw new GatewayError("Cannot decode a server Bot transcript entry.");
+                    }
+                    if (!entry || typeof entry !== "object" || Array.isArray(entry)) throw new GatewayError("Invalid server Bot transcript entry body.");
+                    return {
+                        ...entry,
+                        id: row.entryId || entry.id || String(row.seq)
+                    };
+                })
+            };
+        }
+        async function getServerTranscriptTail(session, record, limit, signal) {
+            return decodeServerTranscript(await serverBackendCall(session, "ListGrokBotTranscriptEntries", {
+                agentId: record.id,
+                sessionId: record.viewerSessionId || "",
+                limit
+            }, {
+                signal
+            }));
+        }
+        async function sendServerPrompt(session, record, body, signal) {
+            const data = await serverBackendCall(session, "SendGrokBotUserMessage", {
+                agentId: record.id,
+                sessionId: record.viewerSessionId || "",
+                messageId: body.clientNonce,
+                text: body.prompt,
+                sentAtMs: String(Date.now()),
+                source: 1,
+                initiator: 1,
+                sendSource: 1,
+                ...body.replyToId ? {
+                    replyToId: body.replyToId
+                } : {}
+            }, {
+                signal
+            });
+            if ([
+                4,
+                "REFUSED"
+            ].includes(data.delivery) || /(?:^|_)REFUSED$/.test(String(data.delivery))) {
+                const error = new GatewayError(data.refusal?.message || "Server Bot refused the message.", {
+                    status: 409,
+                    method: "SendGrokBotUserMessage"
+                });
+                error.delivery = "rejected";
+                throw error;
+            }
+            const accepted = [
+                1,
+                2,
+                3,
+                "ACCEPTED_BOX",
+                "ACCEPTED_TEMPORAL",
+                "DUPLICATE"
+            ].includes(data.delivery) || /(?:^|_)(?:ACCEPTED_BOX|ACCEPTED_TEMPORAL|DUPLICATE)$/.test(String(data.delivery));
+            if (!accepted) return {
+                accepted: false,
+                serverDelivery: data.delivery,
+                deliveryUnknown: true
+            };
+            let status;
+            try {
+                status = await serverBackendCall(session, "GetGrokBotSendStatus", {
+                    agentId: record.id,
+                    sessionId: record.viewerSessionId || "",
+                    messageId: body.clientNonce
+                }, {
+                    signal
+                });
+            } catch  {}
+            return {
+                accepted: true,
+                serverDelivery: data.delivery,
+                ...typeof status?.echoEntryId === "string" && status.echoEntryId ? {
+                    messageId: status.echoEntryId
+                } : {}
+            };
         }
         function resolveFromList(records, ref) {
             const needle = String(ref).trim().toLowerCase();
@@ -65961,7 +66133,7 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
             if (extra.replyToId) body.replyToId = extra.replyToId;
             let data;
             try {
-                data = await gatewayCall(session, "sendPrompt", body, {
+                data = rec.harness === "temporal" ? await sendServerPrompt(session, rec, body, extra.signal) : await gatewayCall(session, "sendPrompt", body, {
                     signal: extra.signal
                 });
             } catch (err) {
@@ -65991,7 +66163,8 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
         }
         async function transcriptEntryIdForNonce(session, agentId, clientNonce, signal) {
             try {
-                const data = await gatewayCall(session, "getAgentTranscriptTail", {
+                const serverRecord = reconnectStates.get(session)?.serverAgents?.get(agentId);
+                const data = serverRecord ? await getServerTranscriptTail(session, serverRecord, 20, signal) : await gatewayCall(session, "getAgentTranscriptTail", {
                     id: agentId,
                     limit: 20
                 }, {
@@ -66007,7 +66180,7 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
         async function getTranscriptTail(session, ref, limit = 40) {
             const rec = await resolveRef(session, ref);
             const bounded = Math.min(Math.max(Math.trunc(limit) || 40, 1), 200);
-            const data = await gatewayCall(session, "getAgentTranscriptTail", {
+            const data = rec.harness === "temporal" ? await getServerTranscriptTail(session, rec, bounded) : await gatewayCall(session, "getAgentTranscriptTail", {
                 id: rec.id,
                 limit: bounded
             });
@@ -66153,8 +66326,11 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
             const mapped = normalizeHeaderMap(body.gatewayHeaders || body.gateway_headers);
             if (Object.keys(mapped).length) return mapped;
             const token = body.anyrunNetworkToken || body.anyrun_network_token || body.networkToken;
+            const portToken = body.gatewayPortToken || body.gateway_port_token;
             return token ? {
                 "x-anyrun-network-token": String(token)
+            } : portToken ? {
+                "x-anyrun-port-token": String(portToken)
             } : {};
         }
         function headersFromEnv() {
@@ -66995,9 +67171,7 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
         });
     },
     "./package.json" (module) {
-        module.exports = {
-            "rE": "0.12.5"
-        };
+        module.exports = JSON.parse('{"rE":"0.12.5-samforo.1"}');
     }
 };
 var __webpack_module_cache__ = {};
